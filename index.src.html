@@ -1,0 +1,107 @@
+<pre class='metadata'>
+Title: Password Change Automation
+Shortname: change-password
+Level: 1
+Status: DREAM
+URL: https://mikewest.github.io/change-password/
+Editor: Mike West 56384, Google Inc., mkwst@google.com
+Abstract:
+    This document defines a mechanism by which web developers may offer password
+    managers the ability to automatically change a user's password.
+</pre>
+<pre class="anchors">
+spec: ECMA262; urlPrefix: https://tc39.github.io/ecma262
+    type: method
+        text: JSON.stringify(); url: sec-json.stringify
+</pre>
+
+Introduction {#intro}
+=====================
+
+TODO(mkwst): Put an introduction here.
+
+Goals {#goals}
+--------------
+
+1.  Password managers should be able to respond to breach reports by
+    changing a user's password directly, rather than prompting a user
+    to do it themselves.
+
+2.  Password changes should be possible in a completely automated fashion,
+    without depending on heuristics to detect password change forms, or
+    (worse) on manually coded mechanisms for every origin.
+
+3.  Any password manager should be able to make use of the functionality,
+    without necessitating a deep integration between products.
+
+4.  Accounts protected by second-factor authentication mechanisms should
+    be able to reauthenticate a user before their password is changed.
+
+Framework {#framework}
+======================
+
+At a high level, the mechanism in this document boils down to the following:
+
+1.  An origin hosts a discovery manifest at `/.well-known/password`, which
+    contains metadata which both asserts that passwords stored for this origin
+    are capable of being changed automatically, and defines parameters which
+    a password manager will use when making a change request.
+
+2.  Once a password manager has verified that an origin's passwords can be
+    automatically changed, it may do so by sending a `PUT` request to
+    `/.well-known/password/change` which contains the user's current username
+    and password tuple, along with the new password.
+
+Discovery {#discovery}
+----------------------
+
+In order to assert that passwords for an origin are automatically changable, a
+conformant server MUST serve a <dfn export>password change automation
+manifest</dfn> which password managers retrieve by sending a `GET` request to
+the well-known URL `/.well-known/password`.
+
+The manifest MUST be delivered as a response whose status code is `200`, content
+type is `application/json`, and body is equivalent to the result of executing
+{{JSON.stringify()}} on a {{PasswordChangeAutomation}} dictionary:
+
+<pre class="idl">
+    dictionary PasswordChangeAutomation {
+      boolean passwordChangeAutomationSupported = true;
+      DOMString title;
+      USVString failureURL;
+    };
+</pre>
+
+<div class="example">
+  MegaCorp, Inc. wishes to support password change automation for accounts used
+  on `https://accounts.example.com/`. It informs password managers that the
+  change mechanism described in this document is supported by placing the
+  following file at `https://accounts.example.com/.well-known/password`:
+
+  <pre>
+    {
+      "<a dict-member>passwordChangeAutomationSupported</a>: true,
+      "<a dict-member>title</a>: "MegaCorp, Inc.",
+      "<a dict-member>failureURL</a>: "https://accounts.google.com/failed-change/"
+    }
+  </pre>
+</div>
+
+Ideas
+=====
+
+It would be bad if automation meant that attackers could trivially modify all
+the passwords for all the users caught up in password dumps. We could harden
+this mechanism in a few ways:
+
+1.  Extend the credential management API to accept a public key along with
+    credential storage. The server would generate a keypair when calling
+    `store()`, hand the public key to the password manager without storing it,
+    and store the private key in some secure way. When requesting a password
+    change, the client would encrypt the password change request using the
+    public key, and the server would decrypt using the private key.
+
+    The upside is mitigation of dragnet password changes. The downside is that
+    key management is hard.
+
+2.  Moar?
